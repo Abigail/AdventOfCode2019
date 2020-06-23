@@ -19,6 +19,10 @@ my $ADD            =  1;
 my $MULTIPLY       =  2;
 my $INPUT          =  3;
 my $OUTPUT         =  4;
+my $JUMP_IF_TRUE   =  5;
+my $JUMP_IF_FALSE  =  6;
+my $LESS_THAN      =  7;
+my $EQUALS         =  8;
 my $HALT           = 99;
 
 my $MODE_POSITION  =  0;
@@ -64,11 +68,15 @@ sub run ($self, %options) {
         if ($opcode == $HALT) {
             return;
         }
-        elsif ($opcode == $ADD || $opcode == $MULTIPLY) {
+        elsif ($opcode == $ADD       || $opcode == $MULTIPLY ||
+               $opcode == $LESS_THAN || $opcode == $EQUALS) {
             my $left  = $self -> fetch ($pc + 1, mode $command, 1);
             my $right = $self -> fetch ($pc + 2, mode $command, 2);
-            my $new   = $opcode == $ADD ? $left + $right
-                                        : $left * $right;
+            my $new   = $opcode == $ADD       ?  $left +  $right
+                      : $opcode == $MULTIPLY  ?  $left *  $right
+                      : $opcode == $LESS_THAN ? ($left <  $right ? 1 : 0)
+                      : $opcode == $EQUALS    ? ($left == $right ? 1 : 0)
+                      : die;
 
             $self -> save ($pc + 3, $new, mode $command, 3);
             $inc = 4;
@@ -88,6 +96,18 @@ sub run ($self, %options) {
             my $value = $self -> fetch ($pc + 1, mode $command, 1);
             $callback -> ($value);
             $inc = 2;
+        }
+        elsif ($opcode == $JUMP_IF_TRUE || $opcode == $JUMP_IF_FALSE) {
+            my $value    = $self -> fetch ($pc + 1, mode $command, 1);
+            my $position = $self -> fetch ($pc + 2, mode $command, 2);
+            if ($opcode == $JUMP_IF_TRUE  &&  $value ||
+                $opcode == $JUMP_IF_FALSE && !$value) {
+                $self -> set_pc ($position);
+                $inc = 0;
+            }
+            else {
+                $inc = 3;
+            }
         }
         else {
             ...
@@ -112,6 +132,11 @@ sub inc_pc ($self, $inc = 1) {
 
 sub init_pc ($self) {
     $pc {$self} = 0;
+    $self;
+}
+
+sub set_pc ($self, $value) {
+    $pc {$self} = $value;
     $self;
 }
 
