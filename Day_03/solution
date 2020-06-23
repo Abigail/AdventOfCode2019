@@ -1,6 +1,6 @@
 #!/opt/perl/bin/perl
 
-use 5.028;
+use 5.026;
 
 use strict;
 use warnings;
@@ -131,86 +131,57 @@ my @wire1 = <$fh> =~ /[RLDU][0-9]+/g;
 my @wire2 = <$fh> =~ /[RLDU][0-9]+/g;
 
 #
-# Trace a wire. Return two sets of sub sections, one set with the
-# vertical wires, and one set with the horizontal wires. Register
-# the endpoints of each wire.
+# Trace a wire. Keep track of which points it has visited, and how
+# far away from the origin each point is.
 #
-my sub trace ($wire) {
-    my $tip = [0, 0];    # Keep track of the 'tip' of the wire
-    my $horizontal = [];
-    my $vertical   = [];
+sub trace ($wire, $visited) {
+    my $tip = [0, 0];
+
+    my $steps = 0;
 
     foreach my $section (@$wire) {
         my ($direction, $distance) = $section =~ /^([LRDU])([0-9]+)/
                          or die "Failed to parse $section";
+        my $delta;
+        $delta = [ 1,  0] if $direction eq 'R';
+        $delta = [-1,  0] if $direction eq 'L';
+        $delta = [ 0,  1] if $direction eq 'U';
+        $delta = [ 0, -1] if $direction eq 'D';
 
-        my $new_tip = [@$tip];
-        $$new_tip [$X] += $distance if $direction eq 'R';
-        $$new_tip [$X] -= $distance if $direction eq 'L';
-        $$new_tip [$Y] += $distance if $direction eq 'U';
-        $$new_tip [$Y] -= $distance if $direction eq 'D';
-
-        push @$horizontal => [$$tip [$Y], $$tip [$X], $$new_tip [$X]]
-                          if  $direction eq 'R';
-        push @$horizontal => [$$tip [$Y], $$new_tip [$X], $$tip [$X]]
-                          if  $direction eq 'L';
-        push @$vertical   => [$$tip [$X], $$tip [$Y], $$new_tip [$Y]]
-                          if  $direction eq 'U';
-        push @$vertical   => [$$tip [$X], $$new_tip [$Y], $$tip [$Y]]
-                          if  $direction eq 'D';
-
-        $tip = $new_tip;
-    }
-
-    return ($horizontal, $vertical);
-}
-
-#
-# Intersect a horizontal and a vertical wire. Return the distance
-# from the origin (Manhattan distance), or undef if no intersection.
-#
-my sub intersect ($horizontal, $vertical) {
-    #
-    # The horizontal section will be of the form [y, x1, x2] (x1 < x2), while
-    # the vertical section will be of the form [x, y1, y2] (y1 < y2). The
-    # sections intersect if, and only if
-    #    x1 <= x <= x2  and   y1 <= y <= y2
-    #
-    # In that case, the intersection point is (x, y), and the distance
-    # to the origin is abs (x) + abs (y)
-    #
-
-    return $$horizontal [1] <= $$vertical   [0]                     &&
-                               $$vertical   [0] <= $$horizontal [2] &&
-           $$vertical   [1] <= $$horizontal [0]                     &&
-                               $$horizontal [0] <= $$vertical   [2]
-            ? abs ($$horizontal [0]) + abs ($$vertical [0])
-            : undef;
-}
-
-
-my ($horizontal1, $vertical1) = trace \@wire1;
-my ($horizontal2, $vertical2) = trace \@wire2;
-
-#
-# Now intersect each horizontal from one wire with each vertical from
-# the other. Keep track of the nearest.
-#
-my $min = (1 << 63) - 1;
-
-foreach my $h (@$horizontal1) {
-    foreach my $v (@$vertical2) {
-        my $dist = intersect $h, $v or next;
-        $min = $dist if $dist < $min;
-    }
-}
-foreach my $h (@$horizontal2) {
-    foreach my $v (@$vertical1) {
-        my $dist = intersect $h, $v or next;
-        $min = $dist if $dist < $min;
+        for (1 .. $distance) {
+            $$tip [0] += $$delta [0];
+            $$tip [1] += $$delta [1];
+            $steps ++;
+            $$visited {$$tip [0]} {$$tip [1]} //= $steps;
+        }
     }
 }
 
-say "Solution 1: $min";
+my $visited1 = {};
+my $visited2 = {};
+
+trace \@wire1, $visited1;
+trace \@wire2, $visited2;
+
+#
+# Find the intersection nearest to the origin, and the intersect
+# with the fasted combined time to reach it.
+#
+my $min_dist = (1 << 63) - 1;
+my $min_time = (1 << 63) - 1;
+foreach my $x (keys %$visited1) {
+    next unless $$visited2 {$x};
+    foreach my $y (keys %{$$visited1 {$x}}) {
+        next unless $$visited2 {$x} {$y};
+        my $time = $$visited1 {$x} {$y} + $$visited2 {$x} {$y};
+        my $dist = abs ($x) + abs ($y);
+        $min_dist = $dist if $dist < $min_dist;
+        $min_time = $time if $time < $min_time;
+    }
+}
+
+say "Solution 1: $min_dist";
+say "Solution 2: $min_time";
+
 
 __END__
