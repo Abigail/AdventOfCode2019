@@ -9,6 +9,8 @@ no  warnings 'syntax';
 use experimental 'signatures';
 use experimental 'lexical_subs';
 
+use lib "../lib";
+
 #
 # Part 1
 #
@@ -154,16 +156,14 @@ use experimental 'lexical_subs';
 # and verb=2, the answer would be 1202.)
 # 
 
+use Intcode;
 
 my $TARGET   = 19690720;
 my $MIN_NOUN =        0;
 my $MAX_NOUN =       99;
 my $MIN_VERB =        0;
 my $MAX_VERB =       99;
-
-my $OP_ADD   =        1;
-my $OP_MUL   =        2;
-my $OP_HALT  =       99;
+my $INIT     = {1 => 12, 2 => 2};
 
 #
 # Read the program
@@ -172,47 +172,17 @@ my $input = shift // "input";
 open my $fh, "<", $input or die "open: $!";
 my $program = [<$fh> =~ /[0-9]+/g];
 
+#
+# Create an interpreter with the given program.
+#
+my $interpreter = Intcode:: -> new -> init (@$program);
 
 #
-# Run the program, setting noun and verb. Return the result
-# (value on position 0).
+# Run the interpreter, initializing two values.
 #
-my sub run ($program, $noun, $verb) {
-    my @program = @$program;
+$interpreter -> run (init => $INIT);
 
-    #
-    # Initialize the program with noun and verb
-    #
-    $program [1] = $noun;
-    $program [2] = $verb;
-
-    my $PC = 0;
-
-    while (1) {
-        my $opcode = $program [$PC ++];
-        last if $opcode == $OP_HALT;
-
-        my $op1  = $program [$PC ++];
-        my $op2  = $program [$PC ++];
-        my $dest = $program [$PC ++];
-
-        die "Program ran out of bound" if $PC >= @program;
-
-        if    ($opcode == $OP_ADD) {
-            $program [$dest] = $program [$op1] + $program [$op2];
-        }
-        elsif ($opcode == $OP_MUL) {
-            $program [$dest] = $program [$op1] * $program [$op2];
-        }
-        else {
-            die "Unknown opcode $opcode";
-        }
-    }
-    return $program [0];
-}
-
-
-say "Solution 1: ", run $program, 12, 2;
+say "Solution 1: ", $interpreter -> fetch (0);
 
 #
 # Brute force the search for the noun and verb; they're given
@@ -220,7 +190,8 @@ say "Solution 1: ", run $program, 12, 2;
 #
 for (my $noun = $MIN_NOUN; $noun <= $MAX_NOUN; $noun ++) {
     for (my $verb = $MIN_VERB; $verb <= $MAX_VERB; $verb ++) {
-        my $result = run $program, $noun, $verb;
+        $interpreter -> run (init => {1 => $noun, 2 => $verb});
+        my $result = $interpreter -> fetch (0);
         if ($result == $TARGET) {
             say "Solution 2: ", 100 * $noun + $verb;
         }
