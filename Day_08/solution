@@ -1,0 +1,64 @@
+#!/opt/perl/bin/perl
+
+use 5.032;
+
+use strict;
+use warnings;
+no  warnings 'syntax';
+
+use experimental 'signatures';
+use experimental 'lexical_subs';
+
+@ARGV = "input" unless @ARGV;
+# @ARGV = "example-2";
+
+my $WIDTH  = $ARGV [0] eq "input"     ? 25
+           : $ARGV [0] eq "example-1" ?  3
+           : $ARGV [0] eq "example-2" ?  2 : die;
+my $HEIGHT = $ARGV [0] eq "input"     ?  6
+           : $ARGV [0] eq "example-1" ?  2
+           : $ARGV [0] eq "example-2" ?  2 : die;
+
+$/ = \($WIDTH * $HEIGHT);
+
+my $WHITE       = 0;
+my $BLACK       = 1;
+my $TRANSPARENT = 2;
+
+my $fewest = 1 + $WIDTH * $HEIGHT;  # Amount of 0s in layer with fewest 0s
+my $score  = 0;                     # Number of 1s * number of 2s in said layer
+
+my @layers;
+
+while (my $layer = <>) {
+    last if $layer =~ /\n/;
+
+    my $nr_of_0s = $layer =~ y/0/0/;
+    my $nr_of_1s = $layer =~ y/1/1/;
+    my $nr_of_2s = $layer =~ y/2/2/;
+
+    if ($fewest > $nr_of_0s) {
+        $fewest = $nr_of_0s;
+        $score  = $nr_of_1s * $nr_of_2s;
+    }
+    push @layers => $layer;
+}
+
+say "Solution 1: ", $score;
+
+foreach my $h (0 .. $HEIGHT - 1) {
+    foreach my $w (0 .. $WIDTH - 1) {
+        my $index = $h * $WIDTH + $w;
+        my $pixel = $TRANSPARENT;
+        foreach my $layer (@layers) {
+            my $p = substr $layer, $index, 1;
+            if ($p != $TRANSPARENT) {
+                $pixel = $p;
+                last;
+            }
+        }
+        print $pixel == $BLACK ? "#" : " ";
+    }
+    print "\n";
+}
+
